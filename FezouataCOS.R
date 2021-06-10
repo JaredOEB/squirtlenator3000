@@ -425,7 +425,7 @@ c_hard_localities <- cos_hard %>%
   filter(genus != "NO_GENUS") %>%
   filter(genus != "NA") %>%
   filter(Max <= 541 & Min >= 485.5) %>%
-  group_by(formation, plon, plat) %>%
+  group_by(formation, plon, plat, Max, Min) %>%
   count() %>%
   filter(n >= 15) %>%
   ungroup() %>%
@@ -484,8 +484,8 @@ c_comm_comp <- c_comm_comp %>%
   mutate(log_dist_km = log10(dist_km + 1))
 
 #Calculate New Distance Metrics
-bin_dist_km_holder <- bin(c_comm_comp$dist_km, nbins = 6, method = "length", na.omit = TRUE)
-bin_log_dist_km_holder <- bin(c_comm_comp$log_dist_km, nbins = 6, method = "length", na.omit = TRUE)
+bin_dist_km_holder <- bin(c_comm_comp$dist_km, nbins = 8, method = "length", na.omit = TRUE)
+bin_log_dist_km_holder <- bin(c_comm_comp$log_dist_km, nbins = 8, method = "length", na.omit = TRUE)
 
 #Add New Distance Metrics to Table, Rename Dissimilarity, Alter Negative Distances
 c_comm_comp$bin_dist_km <- bin_dist_km_holder$data
@@ -493,9 +493,9 @@ c_comm_comp$bin_log_dist_km <- bin_log_dist_km_holder$data
 c_comm_comp <- c_comm_comp %>%
   rename(horn_diss = distance) 
 c_comm_comp$bin_dist_km <- as.character(c_comm_comp$bin_dist_km)
-c_comm_comp[c_comm_comp == "(-20,3.33e+03]"] <- "(0,3.33e+03]"
+c_comm_comp[c_comm_comp == "(-20,2.5e+03]"] <- "(0,2.5e+03]"
 c_comm_comp$bin_log_dist_km <- as.character(c_comm_comp$bin_log_dist_km)
-c_comm_comp[c_comm_comp == "(-0.0043,0.717]"] <- "(0,0.717]"
+c_comm_comp[c_comm_comp == "(-0.0043,0.538]"] <- "(0,0.538]"
 
 #Determine which are Chengjiang sites
 chengjiang_coord <- c_hard_localities %>%
@@ -535,7 +535,7 @@ c_comm_comp[c_comm_comp == "Burgess"] <- paste("Burg ", "AVGLOGDIST: ", BUR_log_
 
 #Choose Color Ramp with six colors
 clrs <- colorRampPalette(c("white", "#7FA056"))
-cls <- clrs(6)
+cls <- clrs(8)
 
 #Graph
 ggplot() + 
