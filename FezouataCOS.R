@@ -186,7 +186,7 @@ cos_hard_localities <- cos_hard %>%
   filter(genus != "NA") %>%
   group_by(formation, plon, plat) %>%
   count() %>%
-  filter(n >= 15) %>%
+  filter(n >= 10) %>%
   ungroup() %>%
   mutate(locality = paste(formation, plat, plon, sep = '_'))
 
@@ -198,7 +198,7 @@ o_hard_localities <- cos_hard %>%
   filter(Max <= 485.5 & Min >= 443) %>%
   group_by(formation, plon, plat, Min, Max) %>%
   count() %>%
-  filter(n >= 15) %>%
+  filter(n >= 10) %>%
   ungroup() %>%
   mutate(locality = paste(formation, plat, plon, sep = '_'))
 
@@ -223,9 +223,8 @@ names$num <- 1:nrow(o_communities)
 
 #Pairwise Comparisons between Localities
 o_comm_comp <- as.matrix(vegdist(o_communities[2:ncol(o_communities)], method = "horn"))
-#o_comm_comp <- as.data.frame(o_comm_comp)
 o_comm_comp <- melt(o_comm_comp)[melt(upper.tri(o_comm_comp))$value,]
-names(o_comm_comp) <- c("c1", "c2", "distance")
+names(o_comm_comp) <- c("c1", "c2", "eco_distance")
 o_comm_comp <- as.data.frame(o_comm_comp)
 
 #Pairwise Comparison Table Merging
@@ -243,11 +242,32 @@ o_comm_comp <- merge(o_comm_comp, o_hard_cord, by.x = "locality.x", by.y = "loca
 o_comm_comp <- merge(o_comm_comp, o_hard_cord,by.x = "locality.y", by.y = "locality")
 o_comm_comp$dist_km <- NA
 
-#Table with Geographic Distances
-o_comm_comp <- o_comm_comp %>% rowwise() %>%
-  mutate(dist_km = distm(c(plon.x,plat.x),c(plon.y,plat.y), fun = distHaversine)/1000)
+#Geographic Distances
 
-#Remove Geographic Distance-less Points
+#Haversine formula (hf)
+gcd.hf <- function(long1, lat1, long2, lat2) {
+  R <- 6371 # Earth mean radius [km]
+  delta.long <- (long2 - long1)
+  delta.lat <- (lat2 - lat1)
+  a <- sin(delta.lat/2)^2 + cos(lat1) * cos(lat2) * sin(delta.long/2)^2
+  c <- 2 * asin(min(1,sqrt(a)))
+  d = R * c
+  return(d) # Distance in km
+}
+
+lonA <- o_comm_comp$plon.x
+latA <- o_comm_comp$plat.x
+lonB <- o_comm_comp$plon.y
+latB <- o_comm_comp$plat.y
+distance <- NA
+
+for (i in 1:nrow(o_comm_comp)) {
+  distance[i] = gcd.hf(lonA[i],latA[i], lonB[i], latB[i])
+}
+
+o_comm_comp$dist_km <- distance
+
+#Remove Geographic Distanceless Points
 o_comm_comp <- o_comm_comp %>%
   filter(!is.na(dist_km))
 
@@ -260,10 +280,10 @@ bin_dist_km_holder <- bin(o_comm_comp$dist_km, nbins = 10, method = "length", na
 bin_log_dist_km_holder <- bin(o_comm_comp$log_dist_km, nbins = 10, method = "length", na.omit = TRUE)
 
 #Add New Distance Metrics to Table, Rename Dissimilarity, Alter Negative Distances
-o_comm_comp$bin_dist_km <- bin_dist_km_holder$data
-o_comm_comp$bin_log_dist_km <- bin_log_dist_km_holder$data
+o_comm_comp$bin_dist_km <- bin_dist_km_holder
+o_comm_comp$bin_log_dist_km <- bin_log_dist_km_holder
 o_comm_comp <- o_comm_comp %>%
-  rename(horn_diss = distance) %>%
+  rename(horn_diss = eco_distance) %>%
   mutate(horn_sim = 1 - horn_diss)
 o_comm_comp$bin_dist_km <- as.character(o_comm_comp$bin_dist_km)
 o_comm_comp[o_comm_comp == "(-20,2e+03]"] <- "(0,2e+03]"
@@ -280,9 +300,9 @@ u_fez_coord <- o_hard_localities %>%
   select(plon,plat)
 
 o_comm_comp <- o_comm_comp %>%
-  mutate(FEZ = ifelse(plon.x %in% u_fez_coord$plon & plon.y %in% u_fez_coord$plon & plat.x %in% u_fez_coord$plat & plat.y %in% u_fez_coord$plat, TRUE, FALSE),
-         fez_bin_dist_km = ifelse(FEZ, "Fezouata",bin_dist_km),
-         fez_bin_log_dist_km = ifelse(FEZ, "Fezouata", bin_log_dist_km)) %>%
+  mutate(FEZ = if_else(plon.x %in% u_fez_coord$plon & plon.y %in% u_fez_coord$plon & plat.x %in% u_fez_coord$plat & plat.y %in% u_fez_coord$plat, TRUE, FALSE),
+         fez_bin_dist_km = if_else(FEZ, "Fezouata",bin_dist_km),
+         fez_bin_log_dist_km = if_else(FEZ, "Fezouata", bin_log_dist_km)) %>%
   select(-FEZ)
 
 #Determine the average distance between Fezouata sites
@@ -292,7 +312,7 @@ log_dist_fezouata <- o_comm_comp %>%
 fez_log_dist_avg <- round(mean(log_dist_fezouata$log_dist_km), digits = 2)
 fez_log_dist_med <- median(log_dist_fezouata$log_dist_km)
 
-o_comm_comp[o_comm_comp == "Fezouata"] <- paste("Fez ", "AVGLOGDIST: ", fez_log_dist_avg, sep = "")
+o_comm_comp[o_comm_comp == "Fezouata"] <- paste("Fezouata ", "AVG LOG DIST: ", fez_log_dist_avg, sep = "")
 
 #Choose Color Ramp with six colors
 clrs <- colorRampPalette(c("white", "blue"))
@@ -300,8 +320,8 @@ cls <- clrs(10)
 
 #Graph
 ggplot() + 
-  #geom_violin(data = o_comm_comp, aes(x = fez_bin_log_dist_km, y = horn_diss, fill = fez_bin_log_dist_km), width = 3) + 
-  geom_boxjitter(data = o_comm_comp, aes(x = fez_bin_log_dist_km, y = (horn_sim), fill = fez_bin_log_dist_km), width=0.2, outlier.shape = NA) + 
+  geom_violin(data = o_comm_comp, aes(x = fez_bin_log_dist_km, y = horn_diss, fill = fez_bin_log_dist_km), width = 3) + 
+  #geom_boxjitter(data = o_comm_comp, aes(x = fez_bin_log_dist_km, y = (horn_sim), fill = fez_bin_log_dist_km), width=0.2, outlier.shape = NA) + 
   xlab("Log of Paleogeographic Distance (km)") +
   ylab("Morista Horn Similarity") +
   ggtitle("Ordovician Paleocommunity Similarity and Paleogeographic Distance") +
@@ -333,8 +353,6 @@ summary(lm( (horn_sim/nSum) ~ dist_km, o_comm_comp))
 o_comm_comp <- o_comm_comp %>% 
   mutate(Polar = ifelse(abs(plat.x) >= 66 & abs(plat.y) >= 66, TRUE, FALSE)) %>%
   mutate(EarlyO = ifelse((Max.x <= 485.5 & Min.x >= 470 & Max.y <= 485.5 & Min.y >= 470),TRUE,FALSE))
-
-
 #Polar Ordovician Geographic Distance and Community Dissimilarity
 #-------------------------------------------------------------------------------
 
