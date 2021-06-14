@@ -23,7 +23,7 @@ library(reshape2)
 #-------------------------------------------------------------------------------
 
 #URL
-data_url <- "https://paleobiodb.org/data1.2/occs/list.csv?max_ma=541&min_ma=416&show=genus,classext,paleoloc,stratext,lith,env,timebins"
+data_url <- "https://paleobiodb.org/data1.2/occs/list.csv?max_ma=541&min_ma=416&show=class,paleoloc,strat"
 
 #Load from Internet
 cos <- getURL(data_url)
@@ -32,9 +32,9 @@ cos <- read.csv(textConnection(cos), header=T)
 #Alter
 cos <- cos %>%
   select(accepted_name, accepted_rank, genus, family, order, class, phylum, 
-         min_ma, max_ma, formation, lithology1, environment, paleolat, paleolng) %>%
+         min_ma, max_ma, formation,paleolat, paleolng) %>%
   mutate("Max" = round(max_ma/0.5)*0.5, "Min" = round(min_ma/0.5)*0.5) %>%
-  rename(lithology = lithology1, plat = paleolat, plon = paleolng) %>%
+  rename(plat = paleolat, plon = paleolng) %>%
   mutate(Range = abs(Max - Min)) %>%
   select(-min_ma, -max_ma)
 
@@ -243,7 +243,6 @@ o_comm_comp <- merge(o_comm_comp, o_hard_cord,by.x = "locality.y", by.y = "local
 o_comm_comp$dist_km <- NA
 
 #Geographic Distances
-
 #Haversine formula (hf)
 gcd.hf <- function(long1, lat1, long2, lat2) {
   R <- 6371 # Earth mean radius [km]
