@@ -490,8 +490,17 @@ c_comm_comp <- merge(c_comm_comp, c_hard_cord,by.x = "locality.y", by.y = "local
 c_comm_comp$dist_km <- NA
 
 #Table with Geographic Distances
-c_comm_comp <- c_comm_comp %>% rowwise() %>%
-  mutate(dist_km = distm(c(plon.x,plat.x),c(plon.y,plat.y), fun = distHaversine)/1000)
+lonA <- c_comm_comp$plon.x
+latA <- c_comm_comp$plat.x
+lonB <- c_comm_comp$plon.y
+latB <- c_comm_comp$plat.y
+distance <- NA
+
+for (i in 1:nrow(c_comm_comp)) {
+  distance[i] = gcd.hf(lonA[i],latA[i], lonB[i], latB[i])
+}
+
+c_comm_comp$dist_km <- distance
 
 #Remove Geographic Distanceless Points
 c_comm_comp <- c_comm_comp %>%
